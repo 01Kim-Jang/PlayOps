@@ -16,50 +16,20 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # 테스트 서버는 공유기가 해외 IP 인바운드를 막고 있어 GitHub 호스티드 러너에서
+    # 접속할 수 없다. 서버에 설치한 self-hosted 러너가 아웃바운드로 작업을 가져간다.
+    runs-on: [self-hosted, playops-testserver]
     timeout-minutes: 20
+
     steps:
-      - name: SSH 준비
-        env:
-          SSH_KEY: ${{ secrets.SSH_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-      - name: 접속 확인 (DDNS 대비 재시도)
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-          PORT: ${{ secrets.SSH_PORT }}
-          USER: ${{ secrets.SSH_USER }}
-        run: |
-          for i in 1 2 3 4 5; do
-            if ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes -o ConnectTimeout=15 \
-                 "$USER@$HOST" 'echo connected'; then
-              exit 0
-            fi
-            echo "접속 실패 ($i/5). 15초 후 재시도"
-            sleep 15
-          done
-          echo "::error::서버에 접속할 수 없습니다. DDNS(coverdreamit.iptime.org) 또는 포트포워딩을 확인하세요."
-          exit 1
-
       - name: 배포
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-          PORT: ${{ secrets.SSH_PORT }}
-          USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$PORT" -o BatchMode=yes "$USER@$HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           cd /home/playops/playops
 
-          # 수동 수정이 남아 있으면 덮어쓰지 않고 실패시킨다.
+          # 서버에 수동 수정이 남아 있으면 덮어쓰지 않고 실패시킨다.
           if ! git diff --quiet || ! git diff --cached --quiet; then
-            echo "서버 작업트리에 커밋되지 않은 변경이 있습니다. 배포를 중단합니다."
+            echo "::error::서버 작업트리에 커밋되지 않은 변경이 있습니다."
             git status --short
             exit 1
           fi
@@ -68,38 +38,40 @@ jobs:
           git fetch --quiet origin dev
           git merge --ff-only origin/dev
           NEW=$(git rev-parse HEAD)
-          echo "배포: ${PREV:0:8} -> ${NEW:0:8}"
 
           if [ "$PREV" = "$NEW" ]; then
-            echo "변경 없음"
+            echo "변경 없음 (${NEW:0:8})"
           else
+            echo "배포: ${PREV:0:8} -> ${NEW:0:8}"
             git --no-pager log --oneline "$PREV".."$NEW"
           fi
 
           CHANGED=$(git diff --name-only "$PREV" "$NEW" || true)
 
-          # api/web은 소스를 바인드 마운트해 핫리로드되므로 재빌드가 필요 없다.
-          # worker는 이미지에 소스를 COPY하고, compose/Dockerfile 변경도 재빌드가 필요하다.
+          # api/web은 소스를 바인드 마운트해 핫리로드된다
+          # (gradle --continuous + Spring DevTools, vite HMR) — 재빌드가 필요 없다.
+          # worker는 이미지에 소스를 COPY하므로 재빌드해야 반영된다.
           if printf '%s\n' "$CHANGED" | grep -qE '^(docker-compose\.dev\.yml|apps/worker/|apps/web/package|apps/api/Dockerfile)'; then
-            echo "이미지 재빌드가 필요한 변경 감지"
+            echo "--- 이미지 재빌드 필요 ---"
             docker compose -f docker-compose.dev.yml up -d --build
           else
-            echo "핫리로드로 반영. 컨테이너 상태만 확인"
+            echo "--- 핫리로드로 반영, 컨테이너 상태만 확인 ---"
             docker compose -f docker-compose.dev.yml up -d
           fi
 
-          echo "--- health check ---"
+      - name: Health check
+        run: |
+          set -euo pipefail
+          cd /home/playops/playops
           for i in $(seq 1 48); do
             if curl -sf -m 5 localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
-              echo "API UP ($((i*5))초)"
+              echo "API UP ($((i * 5))초)"
               curl -s -o /dev/null -w 'WEB HTTP %{http_code}\n' -m 10 localhost:3000
               docker ps --format 'table {{.Names}}\t{{.Status}}'
               exit 0
             fi
             sleep 5
           done
-
           echo "::error::health check 실패"
           docker compose -f docker-compose.dev.yml logs --tail 60 api
           exit 1
-          REMOTE
