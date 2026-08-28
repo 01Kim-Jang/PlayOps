@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: playops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-playops}
+      POSTGRES_USER: ${POSTGRES_USER:-playops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-playops}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - ./storage/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-playops} -d ${POSTGRES_DB:-playops}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev
+    container_name: playops-api
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-playops}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-playops}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-playops}
+      LOGIN_USERNAME: ${LOGIN_USERNAME:-admin}
+      LOGIN_PASSWORD: ${LOGIN_PASSWORD:-admin}
+      PLAYOPS_PROJECTS_ROOT: /playwright-projects
+      PLAYOPS_STORAGE_ROOT: /storage
+      PLAYOPS_DOCKER_ENABLED: ${PLAYOPS_DOCKER_ENABLED:-true}
+      PLAYOPS_ENCRYPTION_KEY: ${PLAYOPS_ENCRYPTION_KEY:-}
+      SPRING_DEVTOOLS_RESTART_ENABLED: "true"
+      SPRING_DEVTOOLS_LIVERELOAD_ENABLED: "true"
+    ports:
+      - "${API_PORT:-8080}:8080"
+      - "${API_DEBUG_PORT:-5005}:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app
+      - ./storage:/storage
+      - ./playwright-projects:/playwright-projects
+      - api-gradle-cache:/home/gradle/.gradle
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      - sh
+      - -c
+      - gradle classes --continuous --no-daemon & gradle bootRun --no-daemon
+
+  web:
+    build:
+      context: ./apps/web
+    container_name: playops-web
+    restart: unless-stopped
+    environment:
+      VITE_API_PROXY: http://api:8080
+      VITE_PLAYOPS_ENV_FILE_PRESENT: ${PLAYOPS_ENV_FILE_PRESENT:-false}
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+    command: ["sh", "-c", "npm install --no-package-lock && npm run dev"]
+
+volumes:
+  api-gradle-cache:
+  web-node-modules:

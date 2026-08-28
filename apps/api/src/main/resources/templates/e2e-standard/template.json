@@ -1,0 +1,6 @@
+{
+  "id": "e2e-standard",
+  "name": "E2E 표준",
+  "description": "playwright.config, fixtures, Page Object 샘플. 실제 서비스 E2E에 가깝게 시작할 때 적합합니다.",
+  "default": false
+}

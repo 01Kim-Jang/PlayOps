@@ -1,0 +1,16 @@
+node_modules
+.gradle
+build
+dist
+coverage
+
+.env
+.env.*
+
+apps/api/.gradle
+apps/api/build
+playwright-projects
+storage
+utils/bin
+
+package-lock.json

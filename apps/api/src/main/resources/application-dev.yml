@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/playops}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.postgresql.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:playops}
+    password: ${SPRING_DATASOURCE_PASSWORD:playops}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+playops:
+  projects-root: ${PLAYOPS_PROJECTS_ROOT:./playwright-projects}
+  storage-root: ${PLAYOPS_STORAGE_ROOT:./storage}
+  docker-enabled: ${PLAYOPS_DOCKER_ENABLED:true}
+  security:
+    encryption-key: ${PLAYOPS_ENCRYPTION_KEY:}
+
+logging:
+  level:
+    com.playops: DEBUG

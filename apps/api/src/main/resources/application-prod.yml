@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: false
+
+playops:
+  projects-root: ${PLAYOPS_PROJECTS_ROOT:/playwright-projects}
+  storage-root: ${PLAYOPS_STORAGE_ROOT:/storage}
+  docker-enabled: ${PLAYOPS_DOCKER_ENABLED:true}
+  security:
+    encryption-key: ${PLAYOPS_ENCRYPTION_KEY:}
+
+logging:
+  level:
+    com.playops: INFO
+    root: WARN

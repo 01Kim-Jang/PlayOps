@@ -1,0 +1,20 @@
+{
+  "name": "Playops",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PlayOps - Playwright test automation operations platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker compose -f docker-compose.dev.yml up --build",
+    "prod": "docker compose up --build",
+    "down": "docker compose down",
+    "down:dev": "docker compose -f docker-compose.dev.yml down",
+    "logs": "docker compose logs -f",
+    "logs:dev": "docker compose -f docker-compose.dev.yml logs -f",
+    "build": "docker compose build",
+    "test": "echo \"TODO: add tests\""
+  }
+}

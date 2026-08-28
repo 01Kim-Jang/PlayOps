@@ -1,0 +1,157 @@
+package com.playops.api.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playops.api.config.PlayOpsProperties;
+import com.playops.api.entity.AiJob;
+import com.playops.api.entity.Project;
+import com.playops.api.exception.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * AI job(현재는 CODE_FIX)마다 일회성 컨테이너를 띄우고 지운다 — 테스트 러너(DockerRunnerService)의
+ * "프로젝트당 상주 컨테이너 + docker exec" 방식과 달리, job 하나당 컨테이너 하나(docker run --rm)다.
+ * docker.sock 제어 방식(ProcessBuilder + CLI)은 DockerRunnerService와 동일하게 맞춘다.
+ */
+@Service
+public class AiRunnerDockerService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiRunnerDockerService.class);
+    private static final String AI_RUNNER_IMAGE = "playops-ai-runner:latest";
+
+    private final PlayOpsProperties properties;
+    private final DockerRunnerService dockerRunnerService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public AiRunnerDockerService(PlayOpsProperties properties, DockerRunnerService dockerRunnerService) {
+        this.properties = properties;
+        this.dockerRunnerService = dockerRunnerService;
+    }
+
+    /** job.json을 공유 볼륨(/storage/ai-jobs/{jobId})에 써 두고, 일회성 AI Runner 컨테이너를 실행한다 (동기 호출 — 호출자가 @Async로 감싼다). */
+    public void runJob(AiJob job, Project project, String failureLog) {
+        Path jobDir = aiJobDir(job.getId());
+        Path resultDir = jobDir.resolve("result");
+        try {
+            Files.createDirectories(jobDir);
+            Files.createDirectories(resultDir);
+
+            Map<String, Object> jobJson = new HashMap<>();
+            jobJson.put("jobId", job.getId());
+            jobJson.put("jobType", job.getJobType().name());
+            jobJson.put("instruction", job.getInstruction());
+            jobJson.put("targetSpecPath", job.getTargetSpecPath());
+            jobJson.put("failureLog", failureLog);
+            jobJson.put("maxIterations", project.getAiMaxIterations());
+            Files.writeString(jobDir.resolve("job.json"), objectMapper.writeValueAsString(jobJson), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new ApiException(500, "AI job 작업 디렉터리 준비 실패: " + e.getMessage());
+        }
+
+        ensureRunnerImage();
+
+        String containerName = "ai-job-" + job.getId();
+        String containerJobFile = containerAiJobPath(job.getId()) + "/job.json";
+        String containerResultDir = containerAiJobPath(job.getId()) + "/result";
+
+        List<String> command = new ArrayList<>();
+        command.add("docker");
+        command.add("run");
+        command.add("--rm");
+        command.add("--name");
+        command.add(containerName);
+        command.add("--network");
+        command.add("container:playops-api");
+        command.addAll(dockerRunnerService.projectVolumeArgs(project.getProjectId()));
+        command.add("--user");
+        command.add("0");
+        command.add("-w");
+        command.add(dockerRunnerService.containerWorkDir(project.getProjectId()));
+        command.add("-e");
+        command.add("AI_JOB_FILE=" + containerJobFile);
+        command.add("-e");
+        command.add("AI_JOB_RESULT_DIR=" + containerResultDir);
+        command.add("-e");
+        command.add("PLAYOPS_LLM_PROXY_URL=http://localhost:8080/internal/ai-jobs/" + job.getId() + "/llm");
+        command.add("-e");
+        command.add("PLAYOPS_CALLBACK_TOKEN=" + job.getCallbackToken());
+        command.add(AI_RUNNER_IMAGE);
+
+        try {
+            log.info("AI job 컨테이너 실행 시작. job={}, container={}", job.getId(), containerName);
+            // job 자체의 timeoutSeconds는 api 쪽 AiJobService에서 별도로 감시한다 (컨테이너가 멈춰도 job이 영구 RUNNING으로 남지 않도록).
+            runProcessCommand(command, 1800);
+            log.info("AI job 컨테이너 종료. job={}", job.getId());
+        } catch (Exception e) {
+            log.error("AI job 컨테이너 실행 실패. job={}", job.getId(), e);
+            throw new ApiException(500, "AI Runner 컨테이너 실행 실패: " + e.getMessage());
+        }
+    }
+
+    public Path aiJobDir(Long jobId) {
+        return Path.of(properties.storageRoot(), "ai-jobs", String.valueOf(jobId));
+    }
+
+    private String containerAiJobPath(Long jobId) {
+        return properties.storageRoot() + "/ai-jobs/" + jobId;
+    }
+
+    private void ensureRunnerImage() {
+        try {
+            runProcessCommand(List.of("docker", "image", "inspect", AI_RUNNER_IMAGE), 10);
+            return;
+        } catch (Exception ignored) {
+            log.info("AI Runner 이미지가 없어 먼저 빌드합니다: {}", AI_RUNNER_IMAGE);
+        }
+        try {
+            runProcessCommand(
+                    List.of(
+                            "docker", "build",
+                            "--no-cache",
+                            "--force-rm",
+                            "-f", "/app/ai-runner.Dockerfile",
+                            "-t", AI_RUNNER_IMAGE,
+                            "/app"
+                    ),
+                    900
+            );
+        } catch (Exception e) {
+            throw new ApiException(500, "AI Runner 이미지 빌드 실패: " + e.getMessage());
+        }
+    }
+
+    private String runProcessCommand(List<String> command, int timeoutSeconds) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+
+        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            throw new ApiException(500, "AI Runner 명령 시간 초과");
+        }
+        if (process.exitValue() != 0) {
+            throw new ApiException(500, output.toString().trim());
+        }
+        return output.toString().trim();
+    }
+}

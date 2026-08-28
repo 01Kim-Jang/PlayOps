@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.playops'
+version = '0.1.0'
+
+sourceCompatibility = '21'
+targetCompatibility = '21'
+
+configurations {
+    developmentOnly
+    runtimeClasspath {
+        extendsFrom developmentOnly
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.security:spring-security-crypto'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') { useJUnitPlatform() }
+
+tasks.named('bootRun') {
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = [
+            '-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005'
+    ]
+    systemProperty 'spring.profiles.active',
+            System.getProperty('spring.profiles.active') ?: System.getenv('SPRING_PROFILES_ACTIVE') ?: 'dev'
+}

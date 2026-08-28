@@ -1,0 +1,79 @@
+import type { LucideIcon } from 'lucide-react';
+import {
+  BarChart3,
+  CalendarClock,
+  Container,
+  LayoutDashboard,
+  FolderTree,
+  GitBranch,
+  Play,
+  Sparkles,
+} from 'lucide-react';
+
+export type ProjectTabId = 'dashboard' | 'source' | 'scenarios' | 'runs' | 'results' | 'ai-analysis' | 'schedules' | 'settings';
+
+export const PROJECT_WORKSPACE_TABS: {
+  id: ProjectTabId;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}[] = [
+  {
+    id: 'dashboard',
+    label: '대시보드',
+    description: '요약 · 추이 · 최근 실행',
+    icon: LayoutDashboard,
+  },
+  {
+    id: 'source',
+    label: '소스 탐색기',
+    description: 'Monaco 편집 · 파일 트리',
+    icon: FolderTree,
+  },
+  {
+    id: 'scenarios',
+    label: '시나리오',
+    description: 'spec 분석 · 케이스 실행',
+    icon: GitBranch,
+  },
+  {
+    id: 'runs',
+    label: '실행 이력',
+    description: '실행 목록 · 로그 스트리밍',
+    icon: Play,
+  },
+  {
+    id: 'results',
+    label: '결과',
+    description: '리포트 · 아티팩트',
+    icon: BarChart3,
+  },
+  {
+    id: 'ai-analysis',
+    label: 'AI 분석',
+    description: '수준별 맞춤 AI 진단 · 해설',
+    icon: Sparkles,
+  },
+  {
+    id: 'schedules',
+    label: '예약 실행',
+    description: '반복 자동 실행 관리',
+    icon: CalendarClock,
+  },
+  {
+    id: 'settings',
+    label: '설정',
+    description: '환경 · Docker Runner',
+    icon: Container,
+  },
+];
+
+export const DEFAULT_PROJECT_TAB: ProjectTabId = 'dashboard';
+
+export function isValidProjectTab(tab: string | undefined): tab is ProjectTabId {
+  return PROJECT_WORKSPACE_TABS.some((t) => t.id === tab);
+}
+
+export function projectTabPath(projectId: string, tab: ProjectTabId = DEFAULT_PROJECT_TAB) {
+  return `/projects/${projectId}/${tab}`;
+}

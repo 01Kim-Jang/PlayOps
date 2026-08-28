@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: playops-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-playops}
+      POSTGRES_USER: ${POSTGRES_USER:-playops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-playops}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - ./storage/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-playops} -d ${POSTGRES_DB:-playops}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: playops-api
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-playops}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-playops}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-playops}
+      LOGIN_USERNAME: ${LOGIN_USERNAME:-admin}
+      LOGIN_PASSWORD: ${LOGIN_PASSWORD:-admin}
+      PLAYOPS_PROJECTS_ROOT: /playwright-projects
+      PLAYOPS_STORAGE_ROOT: /storage
+      PLAYOPS_DOCKER_ENABLED: ${PLAYOPS_DOCKER_ENABLED:-true}
+      PLAYOPS_ENCRYPTION_KEY: ${PLAYOPS_ENCRYPTION_KEY:-}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./storage:/storage
+      - ./playwright-projects:/playwright-projects
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  web:
+    build:
+      context: ./apps/web
+    container_name: playops-web
+    environment:
+      VITE_PLAYOPS_ENV_FILE_PRESENT: ${PLAYOPS_ENV_FILE_PRESENT:-false}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web/src:/app/src
+
+  worker:
+    build:
+      context: ./apps/worker
+    container_name: playops-worker
+    environment:
+      API_BASE_URL: http://api:8080
+      PROJECTS_ROOT: /playwright-projects
+      NPM_CONFIG_CACHE: /storage/cache/npm/worker
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    depends_on:
+      - api
+    volumes:
+      - ./playwright-projects:/playwright-projects
+      - ./storage:/storage
