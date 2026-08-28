@@ -72,6 +72,22 @@ services:
       - web-node-modules:/app/node_modules
     command: ["sh", "-c", "npm install --no-package-lock && npm run dev"]
 
+  worker:
+    build:
+      context: ./apps/worker
+    container_name: playops-worker
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8080
+      PROJECTS_ROOT: /playwright-projects
+      NPM_CONFIG_CACHE: /storage/cache/npm/worker
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    depends_on:
+      - api
+    volumes:
+      - ./playwright-projects:/playwright-projects
+      - ./storage:/storage
+
 volumes:
   api-gradle-cache:
   web-node-modules:

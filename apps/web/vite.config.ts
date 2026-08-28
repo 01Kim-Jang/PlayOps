@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    allowedHosts: ['.ts.net', '.trycloudflare.com'],
     proxy: {
       '/api': {
         target: process.env.VITE_API_PROXY ?? 'http://localhost:8080',
