@@ -2,7 +2,7 @@ name: Deploy to test server
 
 on:
   push:
-    branches: [dev]
+    branches: [main]
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -35,8 +35,8 @@ jobs:
           fi
 
           PREV=$(git rev-parse HEAD)
-          git fetch --quiet origin dev
-          git merge --ff-only origin/dev
+          git fetch --quiet origin main
+          git merge --ff-only origin/main
           NEW=$(git rev-parse HEAD)
 
           if [ "$PREV" = "$NEW" ]; then
