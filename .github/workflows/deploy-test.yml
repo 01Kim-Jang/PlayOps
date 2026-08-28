@@ -91,15 +91,24 @@ jobs:
         run: |
           set -euo pipefail
           cd /home/playops/playops
+          # web은 재빌드 시 npm install 이 끝나야 응답하므로 api/web 모두 같은 시간창 안에서 재시도한다.
+          API_UP=0; WEB_UP=0
           for i in $(seq 1 48); do
-            if curl -sf -m 5 localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
-              echo "API UP ($((i * 5))초)"
-              curl -s -o /dev/null -w 'WEB HTTP %{http_code}\n' -m 10 localhost:3000
+            if [ "$API_UP" = 0 ] && curl -sf -m 5 localhost:8080/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+              API_UP=1; echo "API UP ($((i * 5))초)"
+            fi
+            if [ "$WEB_UP" = 0 ]; then
+              WEB_CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 10 localhost:3000 || true)
+              if [ "$WEB_CODE" = 200 ]; then
+                WEB_UP=1; echo "WEB UP ($((i * 5))초)"
+              fi
+            fi
+            if [ "$API_UP" = 1 ] && [ "$WEB_UP" = 1 ]; then
               docker ps --format 'table {{.Names}}\t{{.Status}}'
               exit 0
             fi
             sleep 5
           done
-          echo "::error::health check 실패"
-          docker compose -f docker-compose.dev.yml logs --tail 60 api
+          echo "::error::health check 실패 (API_UP=$API_UP WEB_UP=$WEB_UP)"
+          docker compose -f docker-compose.dev.yml logs --tail 60 api web
           exit 1
