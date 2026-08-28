@@ -73,6 +73,20 @@ public class AiProviderSettingsService {
         return plain;
     }
 
+    /** 공급자 자동 선택용 — 해당 공급자의 키가 등록되어 있는지만 확인한다. 예외를 던지지 않는다. */
+    public boolean hasKey(AiModelProvider provider) {
+        try {
+            AiProviderSettings settings = loadOrCreate();
+            String encrypted = switch (provider) {
+                case CLAUDE -> settings.getClaudeApiKeyEncrypted();
+                case GPT -> settings.getOpenaiApiKeyEncrypted();
+            };
+            return decryptOrNull(encrypted) != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** LlmGatewayService 전용 — 워크스페이스 연결형 Claude 키에 필요한 workspace id. 없으면 null. */
     public String getClaudeWorkspaceIdOrNull() {
         return loadOrCreate().getClaudeWorkspaceId();

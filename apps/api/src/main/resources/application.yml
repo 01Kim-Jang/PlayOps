@@ -16,6 +16,9 @@ management:
       exposure:
         include: health,info
 
+# AI 공급자 API 키는 관리자 설정(DB, 암호화 저장)에서만 관리한다. 여기에는 모델명만 둔다.
+anthropic:
+  model: ${ANTHROPIC_MODEL:claude-sonnet-5}
+
 openai:
-  api-key: ${OPENAI_API_KEY:}
   model: ${OPENAI_MODEL:gpt-4o-mini}

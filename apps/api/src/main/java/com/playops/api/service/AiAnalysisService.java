@@ -5,89 +5,187 @@ import com.playops.api.dto.AiAnalysisResponse;
 import com.playops.api.dto.AiChatRequest;
 import com.playops.api.dto.ExecutionDetailResponse;
 import com.playops.api.entity.AiModelProvider;
+import com.playops.api.entity.Project;
 import com.playops.api.exception.ApiException;
+import com.playops.api.llm.LlmMessage;
+import com.playops.api.llm.LlmRole;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class AiAnalysisService {
 
+    /** 프롬프트에 실어 보낼 이전 대화 최대 턴 수. */
+    private static final int MAX_HISTORY_MESSAGES = 20;
+
+    private static final List<AiModelProvider> PROVIDER_PREFERENCE =
+            List.of(AiModelProvider.CLAUDE, AiModelProvider.GPT);
+
     private final ExecutionQueryService executionQueryService;
     private final ExecutionLogService executionLogService;
     private final LlmGatewayService llmGatewayService;
+    private final ProjectService projectService;
+    private final AiProviderSettingsService aiProviderSettingsService;
 
     public AiAnalysisService(
             ExecutionQueryService executionQueryService,
             ExecutionLogService executionLogService,
-            LlmGatewayService llmGatewayService
+            LlmGatewayService llmGatewayService,
+            ProjectService projectService,
+            AiProviderSettingsService aiProviderSettingsService
     ) {
         this.executionQueryService = executionQueryService;
         this.executionLogService = executionLogService;
         this.llmGatewayService = llmGatewayService;
+        this.projectService = projectService;
+        this.aiProviderSettingsService = aiProviderSettingsService;
     }
 
     public AiAnalysisResponse analyze(AiAnalysisRequest request) {
         Long executionId = request.getExecutionId();
-        String userLevel = request.getUserLevel() != null ? request.getUserLevel().toUpperCase() : "JUNIOR";
-        AiModelProvider provider = parseProvider(request.getProvider());
+        String userLevel = normalizeUserLevel(request.getUserLevel());
 
-        ExecutionDetailResponse detail = null;
+        ExecutionDetailResponse detail = loadDetailOrNull(executionId);
         String logContent = "";
-
         if (executionId != null) {
             try {
-                detail = executionQueryService.getDetail(executionId);
                 logContent = executionLogService.readLog(executionId, 0).content();
             } catch (Exception e) {
-                // Ignore log read errors for fallback
+                // 로그를 못 읽어도 메타정보만으로 분석은 가능하므로 무시한다.
             }
         }
 
-        String systemPrompt = buildSystemPrompt(userLevel);
+        AiModelProvider provider = resolveProvider(request.getProvider(), detail);
+        String systemPrompt = buildPersonaPrompt(userLevel);
         String userPrompt = buildAnalysisPrompt(detail, logContent, userLevel, request.getAdditionalContext());
 
-        String aiResult = callLlm(provider, systemPrompt, userPrompt);
+        String aiResult = callLlm(provider, systemPrompt, List.of(LlmMessage.user(userPrompt)));
         return parseAiResponse(aiResult, userLevel);
     }
 
     public String chat(AiChatRequest request) {
-        Long executionId = request.getExecutionId();
-        String userLevel = request.getUserLevel() != null ? request.getUserLevel().toUpperCase() : "JUNIOR";
         String question = request.getQuestion();
-        AiModelProvider provider = parseProvider(request.getProvider());
-
-        ExecutionDetailResponse detail = null;
-        if (executionId != null) {
-            try {
-                detail = executionQueryService.getDetail(executionId);
-            } catch (Exception ignored) {}
+        if (question == null || question.isBlank()) {
+            throw new ApiException(400, "질문을 입력해주세요.");
         }
 
-        String systemPrompt = buildSystemPrompt(userLevel);
-        StringBuilder userPrompt = new StringBuilder();
-        userPrompt.append("Playwright 테스트 및 E2E 결과 관련 질의응답:\n");
-        if (detail != null && detail.execution() != null) {
-            userPrompt.append("참고 실행 정보: 상태=").append(detail.execution().status())
-                      .append(", 통과=").append(detail.execution().passedTests())
-                      .append(", 실패=").append(detail.execution().failedTests()).append("\n");
-        }
-        userPrompt.append("사용자 질문: ").append(question).append("\n");
-        userPrompt.append("답변 요청: 사용자의 기술 수준(").append(userLevel).append(")에 맞춰 이해하기 쉽고 친절하게 한글로 답해주세요.");
+        String userLevel = normalizeUserLevel(request.getUserLevel());
+        ExecutionDetailResponse detail = loadDetailOrNull(request.getExecutionId());
+        AiModelProvider provider = resolveProvider(request.getProvider(), detail);
 
-        return callLlm(provider, systemPrompt, userPrompt.toString());
+        String systemPrompt = buildChatSystemPrompt(userLevel, detail);
+
+        List<LlmMessage> messages = new ArrayList<>(toLlmHistory(request.getHistory()));
+        messages.add(LlmMessage.user(question));
+
+        return callLlm(provider, systemPrompt, messages);
     }
 
-    private AiModelProvider parseProvider(String raw) {
+    private ExecutionDetailResponse loadDetailOrNull(Long executionId) {
+        if (executionId == null) {
+            return null;
+        }
+        try {
+            return executionQueryService.getDetail(executionId);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * 공급자 결정 순서: 요청에 명시된 값 → 실행이 속한 프로젝트 설정 → 키가 등록된 첫 공급자 → CLAUDE.
+     * 마지막 CLAUDE 는 아무 키도 없을 때 "키 미등록" 400 이 그대로 드러나게 하기 위한 값이다.
+     */
+    private AiModelProvider resolveProvider(String raw, ExecutionDetailResponse detail) {
+        AiModelProvider requested = parseProviderOrNull(raw);
+        if (requested != null) {
+            return requested;
+        }
+
+        AiModelProvider fromProject = providerFromProject(detail);
+        if (fromProject != null) {
+            return fromProject;
+        }
+
+        for (AiModelProvider candidate : PROVIDER_PREFERENCE) {
+            if (aiProviderSettingsService.hasKey(candidate)) {
+                return candidate;
+            }
+        }
+        return AiModelProvider.CLAUDE;
+    }
+
+    private AiModelProvider providerFromProject(ExecutionDetailResponse detail) {
+        if (detail == null || detail.execution() == null) {
+            return null;
+        }
+        String projectId = detail.execution().projectId();
+        if (projectId == null || projectId.isBlank()) {
+            return null;
+        }
+        try {
+            Project project = projectService.getProject(projectId);
+            return project != null ? project.getAiModelProvider() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private AiModelProvider parseProviderOrNull(String raw) {
         if (raw == null || raw.isBlank()) {
-            return AiModelProvider.CLAUDE;
+            return null;
         }
         try {
             return AiModelProvider.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return AiModelProvider.CLAUDE;
+            return null;
         }
     }
 
-    private String buildSystemPrompt(String userLevel) {
+    private String normalizeUserLevel(String userLevel) {
+        return userLevel != null ? userLevel.toUpperCase() : "JUNIOR";
+    }
+
+    /** 알 수 없는 role 은 버리고, 내용이 빈 메시지도 건너뛴다. 최근 MAX_HISTORY_MESSAGES 건만 남긴다. */
+    private List<LlmMessage> toLlmHistory(List<AiChatRequest.ChatHistoryMessage> history) {
+        if (history == null || history.isEmpty()) {
+            return List.of();
+        }
+        List<LlmMessage> mapped = new ArrayList<>();
+        for (AiChatRequest.ChatHistoryMessage entry : history) {
+            if (entry == null || entry.getContent() == null || entry.getContent().isBlank()) {
+                continue;
+            }
+            LlmRole role = parseRoleOrNull(entry.getRole());
+            if (role == null) {
+                continue;
+            }
+            mapped.add(new LlmMessage(role, entry.getContent()));
+        }
+        if (mapped.size() > MAX_HISTORY_MESSAGES) {
+            mapped = new ArrayList<>(mapped.subList(mapped.size() - MAX_HISTORY_MESSAGES, mapped.size()));
+        }
+        // Claude 는 첫 메시지가 user 여야 하므로, 잘라낸 뒤 선두에 남은 assistant 턴은 버린다.
+        while (!mapped.isEmpty() && mapped.get(0).role() == LlmRole.ASSISTANT) {
+            mapped.remove(0);
+        }
+        return mapped;
+    }
+
+    private LlmRole parseRoleOrNull(String role) {
+        if (role == null) {
+            return null;
+        }
+        return switch (role.trim().toLowerCase()) {
+            case "user" -> LlmRole.USER;
+            case "assistant" -> LlmRole.ASSISTANT;
+            default -> null;
+        };
+    }
+
+    private String buildPersonaPrompt(String userLevel) {
         switch (userLevel) {
             case "NON_DEVELOPER":
                 return "당신은 IT 비전공자 및 일반 사용자를 위해 친절하고 쉬운 비유로 설명해주는 웹 테스트 전문 AI 컨설턴트입니다. " +
@@ -100,6 +198,20 @@ public class AiAnalysisService {
                 return "당신은 컴퓨터공학과 학부생 및 초급 개발자를 지도하는 멘토 개발자 AI입니다. " +
                        "Playwright 기본 개념(page.waitForSelector, locator.click, HTTP Status 등)을 활용하여 원인을 차근차근 설명하고, 학부생 눈높이에 맞춘 구체적인 Playwright 코드 수정 예시와 팁을 제공하세요.";
         }
+    }
+
+    /** 대화용 시스템 프롬프트: 페르소나 + 참고 실행 정보 + 답변 지침. 사용자 메시지에는 질문만 담는다. */
+    private String buildChatSystemPrompt(String userLevel, ExecutionDetailResponse detail) {
+        StringBuilder sb = new StringBuilder(buildPersonaPrompt(userLevel));
+        sb.append("\n\nPlaywright 테스트 및 E2E 결과 관련 질의응답을 진행합니다.\n");
+        if (detail != null && detail.execution() != null) {
+            sb.append("참고 실행 정보: 상태=").append(detail.execution().status())
+              .append(", 통과=").append(detail.execution().passedTests())
+              .append(", 실패=").append(detail.execution().failedTests()).append("\n");
+        }
+        sb.append("답변 요청: 사용자의 기술 수준(").append(userLevel)
+          .append(")에 맞춰 이해하기 쉽고 친절하게 한글로, Markdown으로 답변해주세요.");
+        return sb.toString();
     }
 
     private String buildAnalysisPrompt(ExecutionDetailResponse detail, String logs, String userLevel, String additionalContext) {
@@ -134,33 +246,17 @@ public class AiAnalysisService {
         return sb.toString();
     }
 
-    private String callLlm(AiModelProvider provider, String systemPrompt, String userPrompt) {
+    /**
+     * 호출 실패는 그대로 드러낸다 — 예전처럼 가짜 예시 답변을 돌려주면
+     * 사용자가 사실이 아닌 분석을 진짜 결과로 믿게 된다.
+     */
+    private String callLlm(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages) {
         try {
-            return llmGatewayService.chat(provider, systemPrompt, userPrompt);
+            return llmGatewayService.chat(provider, systemPrompt, messages);
         } catch (ApiException e) {
-            // 키 미설정은 관리자가 알아야 하는 설정 문제이므로 그대로 전파한다.
             throw e;
         } catch (Exception e) {
-            return getFallbackAiResponse(systemPrompt, userPrompt);
-        }
-    }
-
-    private String getFallbackAiResponse(String systemPrompt, String userPrompt) {
-        if (systemPrompt.contains("비전공자")) {
-            return "### 📌 한 줄 요약\n웹사이트 로그인 버튼을 찾지 못해 테스트 진행이 잠시 멈췄습니다.\n\n" +
-                   "### 🔍 원인 분석\n마치 찾으려는 가게 간판 이름이나 위치가 바뀐 것처럼, 웹페이지 안의 '로그인 버튼' 이름이나 주소가 변경되어 브라우저가 버튼을 누르지 못하고 기다리다가 시간이 초과되었습니다.\n\n" +
-                   "### 💡 추천 조치 및 수정 코드\n웹페이지 화면에서 로그인 버튼의 모양이나 글자('로그인' -> 'Sign In')가 변경되었는지 확인하시고, 화면 버튼 이름을 최신으로 갱신해 보세요.\n\n" +
-                   "### 🛡️ 예방 팁\n웹사이트 디자인이 새로 바뀔 때 테스트 화면 규칙도 함께 맞춰서 업데이트해 주시면 100% 예방할 수 있습니다.";
-        } else if (systemPrompt.contains("시니어")) {
-            return "### 📌 한 줄 요약\nAsync/Await DOM Race Condition 및 Execution Context Detached Exception 분석.\n\n" +
-                   "### 🔍 원인 분석\nDocker 러너 컨테이너 환경에서 SPA 라우팅 비동기 렌더링 시 싱글 스레드 Event Loop 레이스 조건이 발생하여 Target Frame이 Detach 되었습니다. Locator Resilience 및 DOM Tree Mutation 헬스체크가 시급합니다.\n\n" +
-                   "### 💡 추천 조치 및 수정 코드\n`playwright.config.ts`의 actionTimeout 및 expect timeout을 재조정하고, Strict Dynamic Role Locator(`getByRole('button', { name: '로그인' })`)로 심층 리팩토링하세요.\n\n" +
-                   "### 🛡️ 예방 팁\nCI/CD 파이프라인 상에서 Flaky Test 트래킹 및 Retries=2 설정을 적용하여 런타임 결정론(Determinism)을 확보하세요.";
-        } else {
-            return "### 📌 한 줄 요약\nPlaywright Locator 선택자 타임아웃(TimeoutExceeded 30000ms) 발생.\n\n" +
-                   "### 🔍 원인 분석\n`page.locator('button#login')` 요소를 탐색하는 과정에서 동적 DOM 렌더링 지연 및 Selector 불일치로 인해 30초 한도 내에 클릭 이벤트를 트리거하지 못했습니다.\n\n" +
-                   "### 💡 추천 조치 및 수정 코드\n```typescript\n// 명시적 렌더링 대기 구문 추가\nawait page.waitForSelector('button#login', { state: 'visible' });\nawait page.getByRole('button', { name: '로그인' }).click();\n```\n\n" +
-                   "### 🛡️ 예방 팁\n비동기 웹페이지 테스트 작성 시 `waitForLoadState('networkidle')` 구문을 적극 활용하여 네트워크 렌더링 완료 상태를 확인하세요.";
+            throw new ApiException(502, "AI 호출 실패: " + e.getMessage());
         }
     }
 

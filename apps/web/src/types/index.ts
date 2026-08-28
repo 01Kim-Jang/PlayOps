@@ -434,10 +434,20 @@ export interface AiAnalysisResponse {
   rawAiResponse: string;
 }
 
+export interface AiChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  /** 클라이언트에서 생성한 오류 안내 메시지. 서버 히스토리로는 보내지 않는다. */
+  error?: boolean;
+}
+
 export interface AiChatRequest {
   executionId?: number;
   question: string;
   userLevel: UserLevel;
+  provider?: AiModelProvider;
+  /** 이전 대화 턴(오래된 순). 서버는 최근 20개만 사용한다. */
+  history?: AiChatMessage[];
 }
 
 export const DEFAULT_PROJECT_FORM: ProjectFormData = {

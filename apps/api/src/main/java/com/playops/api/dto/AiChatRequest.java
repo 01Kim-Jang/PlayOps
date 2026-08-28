@@ -1,10 +1,13 @@
 package com.playops.api.dto;
 
+import java.util.List;
+
 public class AiChatRequest {
     private Long executionId;
     private String question;
     private String userLevel;
-    private String provider; // CLAUDE, GPT (기본 CLAUDE)
+    private String provider; // CLAUDE, GPT (미지정 시 서버가 자동 선택)
+    private List<ChatHistoryMessage> history;
 
     public AiChatRequest() {}
 
@@ -44,5 +47,42 @@ public class AiChatRequest {
 
     public void setUserLevel(String userLevel) {
         this.userLevel = userLevel;
+    }
+
+    public List<ChatHistoryMessage> getHistory() {
+        return history;
+    }
+
+    public void setHistory(List<ChatHistoryMessage> history) {
+        this.history = history;
+    }
+
+    /** 이전 대화 한 턴. role 은 "user" 또는 "assistant"이며, 그 외 값은 무시된다. */
+    public static class ChatHistoryMessage {
+        private String role;
+        private String content;
+
+        public ChatHistoryMessage() {}
+
+        public ChatHistoryMessage(String role, String content) {
+            this.role = role;
+            this.content = content;
+        }
+
+        public String getRole() {
+            return role;
+        }
+
+        public void setRole(String role) {
+            this.role = role;
+        }
+
+        public String getContent() {
+            return content;
+        }
+
+        public void setContent(String content) {
+            this.content = content;
+        }
     }
 }

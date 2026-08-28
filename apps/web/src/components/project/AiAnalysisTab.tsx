@@ -11,10 +11,13 @@ import {
   Send,
   Loader2,
   Wrench,
+  RotateCcw,
 } from 'lucide-react';
 import { api } from '@/api/client';
 import type { Execution, UserLevel, AiAnalysisResponse, AiJob, PostApplyVerificationStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { AiMarkdown } from '@/components/ai/AiMarkdown';
+import { useAiChat } from '@/hooks/useAiChat';
 import { cn } from '@/lib/utils';
 
 const aiJobStatusLabel: Record<AiJob['status'], string> = {
@@ -99,10 +102,20 @@ export function AiAnalysisTab({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
 
-  // Chat Q&A State
+  // Chat Q&A State (대화 이력/전송은 공용 훅에 위임)
   const [chatQuestion, setChatQuestion] = useState('');
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
+  const {
+    messages: chatMessages,
+    loading: chatLoading,
+    send: sendChat,
+    clear: clearChat,
+  } = useAiChat({ executionId: targetExecutionId ?? undefined, userLevel });
+  const chatListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = chatListRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages.length, chatLoading]);
 
   useEffect(() => {
     if (selectedExecutionId) {
@@ -130,28 +143,10 @@ export function AiAnalysisTab({
 
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatQuestion.trim() || chatLoading) return;
-
     const q = chatQuestion.trim();
+    if (!q || chatLoading) return;
     setChatQuestion('');
-    setChatMessages((prev) => [...prev, { role: 'user', content: q }]);
-    setChatLoading(true);
-
-    try {
-      const res = await api.ai.chat({
-        executionId: targetExecutionId ?? undefined,
-        question: q,
-        userLevel,
-      });
-      setChatMessages((prev) => [...prev, { role: 'assistant', content: res.answer }]);
-    } catch (err: any) {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `답변 생성 중 오류: ${err.message}` },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
+    await sendChat(q);
   };
 
   const currentExec = executions.find((e) => e.id === targetExecutionId);
@@ -459,14 +454,28 @@ export function AiAnalysisTab({
 
       {/* 3. 대화형 AI 추가 질문 (깔끔한 미니멀 디자인) */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <div className="flex items-center gap-2 text-foreground font-bold text-xs">
-          <Bot className="h-4 w-4 text-primary" />
-          AI 대화형 도우미 (이 오류나 시나리오에 대해 자유롭게 질문해 보세요)
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-foreground font-bold text-xs">
+            <Bot className="h-4 w-4 text-primary" />
+            AI 대화형 도우미 (이 오류나 시나리오에 대해 자유롭게 질문해 보세요)
+          </div>
+          {chatMessages.length > 0 && (
+            <button
+              type="button"
+              onClick={clearChat}
+              disabled={chatLoading}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              title="대화 초기화"
+            >
+              <RotateCcw className="h-3 w-3" />
+              대화 초기화
+            </button>
+          )}
         </div>
 
         {/* 대화 목록 */}
         {chatMessages.length > 0 && (
-          <div className="space-y-2.5 max-h-64 overflow-y-auto p-3 rounded-lg bg-muted border border-border">
+          <div ref={chatListRef} className="space-y-2.5 max-h-64 overflow-y-auto p-3 rounded-lg bg-muted border border-border">
             {chatMessages.map((msg, idx) => (
               <div
                 key={idx}
@@ -481,7 +490,11 @@ export function AiAnalysisTab({
                       : 'bg-card border border-border text-foreground rounded-bl-none'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  {msg.role === 'user' ? (
+                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  ) : (
+                    <AiMarkdown content={msg.content} className="leading-relaxed" />
+                  )}
                 </div>
               </div>
             ))}
