@@ -48,6 +48,34 @@ jobs:
 
           CHANGED=$(git diff --name-only "$PREV" "$NEW" || true)
 
+          # --- 환경변수 점검 (값은 읽지 않고 키 이름만 비교한다) ---
+          # .env 는 gitignore 라 서버에서 손으로 관리한다. 새 변수가 추가됐는데
+          # 서버에 반영이 안 되면 조용히 compose 기본값으로 동작하므로 여기서 잡는다.
+          if [ ! -f .env ]; then
+            echo "::error::.env 가 없습니다."
+            exit 1
+          fi
+
+          MISSING=$(comm -23 \
+            <(grep -oE '^[A-Z_][A-Z0-9_]*' .env.example | sort -u) \
+            <(grep -oE '^[A-Z_][A-Z0-9_]*' .env | sort -u) || true)
+          if [ -n "$MISSING" ]; then
+            while read -r k; do
+              [ -n "$k" ] && echo "::warning::서버 .env 에 $k 가 없습니다 (compose 기본값으로 동작 중)"
+            done <<< "$MISSING"
+          else
+            echo "환경변수 키 일치"
+          fi
+
+          # prod 프로필에서 암호화 키가 비어 있으면 API 가 기동에 실패한다.
+          PROFILE=$(grep -E '^SPRING_PROFILES_ACTIVE=' .env | cut -d= -f2- || true)
+          ENCKEY=$(grep -E '^PLAYOPS_ENCRYPTION_KEY=' .env | cut -d= -f2- || true)
+          if [ "$PROFILE" = "prod" ] && [ -z "$ENCKEY" ]; then
+            echo "::error::prod 프로필인데 PLAYOPS_ENCRYPTION_KEY 가 비어 있습니다. API 가 기동하지 못합니다."
+            exit 1
+          fi
+
+
           # api/web은 소스를 바인드 마운트해 핫리로드된다
           # (gradle --continuous + Spring DevTools, vite HMR) — 재빌드가 필요 없다.
           # worker는 이미지에 소스를 COPY하므로 재빌드해야 반영된다.
