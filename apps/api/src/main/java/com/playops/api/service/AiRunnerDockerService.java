@@ -158,7 +158,8 @@ public class AiRunnerDockerService {
             runProcessCommand(command, Math.max(120, projectTimeout + 60));
 
             String resultJson = Files.readString(resultDir.resolve("result.json"), StandardCharsets.UTF_8);
-            Map<?, ?> parsed = objectMapper.readValue(resultJson, Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(resultJson, Map.class);
             boolean passed = Boolean.TRUE.equals(parsed.get("passed"));
             String output = String.valueOf(parsed.getOrDefault("output", ""));
             return new VerifyResult(passed, output);
