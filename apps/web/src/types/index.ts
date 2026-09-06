@@ -499,6 +499,13 @@ export interface AiTemplateResponse {
   }[];
 }
 
+export interface AiBootstrapResponse {
+  executionId: number;
+  generatedFiles: string[];
+  specPath: string;
+  estimatedDurationMs: number;
+}
+
 export interface AiEditAssistVerifyResponse {
   passed: boolean;
   log: string;

@@ -23,6 +23,7 @@ import type { DockerStatus, ExecutionStatus, Project, ProjectFormData, RunnerAct
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
+import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import {
   configuredEnvCount as countConfiguredEnvVariables,
@@ -199,6 +200,7 @@ export function ProjectsPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<ProjectFilter>('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [aiBootstrap, setAiBootstrap] = useState<{ projectId: string; instruction: string } | null>(null);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [envProject, setEnvProject] = useState<Project | null>(null);
   const [testLoadingId, setTestLoadingId] = useState<string | null>(null);
@@ -251,10 +253,13 @@ export function ProjectsPage() {
     return true;
   }), [projects, query, filter]);
 
-  const handleCreate = async (data: ProjectFormData) => {
+  const handleCreate = async (data: ProjectFormData, aiBootstrapInstruction?: string) => {
     await api.createProject(data);
     setDialogOpen(false);
     loadProjects();
+    if (aiBootstrapInstruction) {
+      setAiBootstrap({ projectId: data.projectId, instruction: aiBootstrapInstruction });
+    }
   };
 
   const handleUpdate = async (data: ProjectFormData) => {
@@ -627,6 +632,23 @@ export function ProjectsPage() {
         onSubmit={handleCreate}
         title="프로젝트 등록"
       />
+
+      {aiBootstrap && (
+        <AiBootstrapProgressDialog
+          open
+          projectId={aiBootstrap.projectId}
+          instruction={aiBootstrap.instruction}
+          onClose={() => {
+            setAiBootstrap(null);
+            loadProjects();
+          }}
+          onOpenProject={() => {
+            const target = aiBootstrap.projectId;
+            setAiBootstrap(null);
+            navigate(projectTabPath(target, 'source'));
+          }}
+        />
+      )}
 
       {editProject && (
         <ProjectFormDialog

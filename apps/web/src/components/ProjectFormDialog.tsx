@@ -26,7 +26,8 @@ import {
 interface ProjectFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: ProjectFormData) => Promise<void>;
+  /** aiBootstrapInstruction이 있으면 저장 후 AI가 초기 케이스를 만들고 실행까지 이어간다. */
+  onSubmit: (data: ProjectFormData, aiBootstrapInstruction?: string) => Promise<void>;
   title: string;
   initial?: Project;
 }
@@ -199,6 +200,8 @@ export function ProjectFormDialog({
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>([emptyEnvRow()]);
   const [bulkEnvText, setBulkEnvText] = useState('');
   const [envError, setEnvError] = useState('');
+  const [aiBootstrapEnabled, setAiBootstrapEnabled] = useState(false);
+  const [aiBootstrapInstruction, setAiBootstrapInstruction] = useState('');
 
   useEffect(() => {
     if (open && !initial) {
@@ -315,8 +318,12 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
+    const bootstrapInstruction =
+      !initial && aiBootstrapEnabled && aiBootstrapInstruction.trim()
+        ? aiBootstrapInstruction.trim()
+        : undefined;
     try {
-      await onSubmit(form);
+      await onSubmit(form, bootstrapInstruction);
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장에 실패했습니다.');
     } finally {
@@ -774,6 +781,27 @@ export function ProjectFormDialog({
                       title="기본 테스트 생성"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-ai-accent/30 bg-ai-accent/5 p-3">
+                  <ToggleRow
+                    checked={aiBootstrapEnabled}
+                    onChange={setAiBootstrapEnabled}
+                    title="AI로 초기 테스트 케이스 생성"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    등록 직후 AI가 이 사이트에 맞는 첫 테스트 케이스를 만들고, 곧바로 실제로 실행해서
+                    통과하는지까지 보여줍니다.
+                  </p>
+                  {aiBootstrapEnabled && (
+                    <textarea
+                      rows={3}
+                      value={aiBootstrapInstruction}
+                      onChange={(e) => setAiBootstrapInstruction(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ai-accent"
+                      placeholder="예: 메인 페이지가 정상적으로 열리고 제목이 보이는지 확인해줘."
+                    />
+                  )}
                 </div>
               </FormSection>
             )}

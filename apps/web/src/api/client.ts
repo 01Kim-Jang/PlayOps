@@ -323,6 +323,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  aiBootstrap: (projectId: string, data: { instruction: string; provider?: string }) =>
+    request<import('@/types').AiBootstrapResponse>(`/api/projects/${projectId}/ai/bootstrap`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getScenarios: (projectId: string) =>
     request<ScenarioTree>(`/api/projects/${projectId}/scenarios`),
 
