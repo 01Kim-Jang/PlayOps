@@ -128,6 +128,31 @@ jobs:
           cd /home/playops/playops
           API=http://localhost:8080
 
+          # api는 소스를 바인드 마운트해 gradle --continuous + DevTools로 재시작한다.
+          # 배포 직후엔 "재컴파일 -> 재시작"이 뒤늦게 일어날 수 있어서, 위 health check를
+          # 통과했더라도 테스트 도중에 API가 내려갈 수 있다(그러면 실행이 ERROR로 정리된다).
+          # 그래서 self-test 전에 "연속으로 healthy한 상태가 STABLE_NEEDED회 이어질 것"을 요구한다.
+          STABLE_NEEDED=8
+          stable=0
+          for i in $(seq 1 60); do
+            if curl -sf -m 5 "$API/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
+              stable=$((stable + 1))
+            else
+              [ "$stable" -gt 0 ] && echo "API 재시작 감지, 안정화 카운터 초기화"
+              stable=0
+            fi
+            if [ "$stable" -ge "$STABLE_NEEDED" ]; then
+              echo "API 안정화 확인 ($((stable * 5))초 연속 healthy)"
+              break
+            fi
+            sleep 5
+          done
+          if [ "$stable" -lt "$STABLE_NEEDED" ]; then
+            echo "::error::API가 안정화되지 않아 self-test를 시작할 수 없습니다."
+            docker compose -f docker-compose.dev.yml logs --tail 60 api
+            exit 1
+          fi
+
           LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- || true); LOGIN_USER=${LOGIN_USER:-admin}
           LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- || true); LOGIN_PASS=${LOGIN_PASS:-admin}
 
@@ -149,25 +174,37 @@ jobs:
             exit 1
           fi
 
-          EXEC_ID=$(curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
-            "$API/api/projects/playops-self/test-suites/$SUITE_ID/execute" | jq -r '.id')
-          echo "self-test 실행 시작: execution #$EXEC_ID"
-
+          # ERROR는 테스트가 틀렸다는 뜻이 아니라 API 재시작 등으로 실행이 정리된 경우가 많아서
+          # (errorMessage: "API 서버 재시작 ... 종료 처리했습니다") 한 번만 다시 시도한다.
+          # 진짜 회귀(FAILED)는 재시도하지 않고 그대로 실패시킨다.
           STATUS=""
-          for i in $(seq 1 60); do
-            STATUS=$(curl -sf -H "Authorization: Bearer $TOKEN" "$API/api/executions/$EXEC_ID" | jq -r '.execution.status')
-            case "$STATUS" in
-              PASSED)
-                echo "self-test 통과 (execution #$EXEC_ID, $((i * 10))초)"
-                exit 0
-                ;;
-              FAILED|ERROR|CANCELLED)
-                break
-                ;;
-              *)
-                sleep 10
-                ;;
-            esac
+          for attempt in 1 2; do
+            EXEC_ID=$(curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
+              "$API/api/projects/playops-self/test-suites/$SUITE_ID/execute" | jq -r '.id')
+            echo "self-test 실행 시작 (시도 $attempt): execution #$EXEC_ID"
+
+            STATUS=""
+            for i in $(seq 1 60); do
+              STATUS=$(curl -sf -H "Authorization: Bearer $TOKEN" "$API/api/executions/$EXEC_ID" | jq -r '.execution.status')
+              case "$STATUS" in
+                PASSED)
+                  echo "self-test 통과 (execution #$EXEC_ID, $((i * 10))초)"
+                  exit 0
+                  ;;
+                FAILED|ERROR|CANCELLED)
+                  break
+                  ;;
+                *)
+                  sleep 10
+                  ;;
+              esac
+            done
+
+            if [ "$STATUS" != "ERROR" ] || [ "$attempt" = 2 ]; then
+              break
+            fi
+            echo "::warning::execution #$EXEC_ID 가 ERROR로 종료됐습니다(대부분 API 재시작). 30초 후 한 번 더 시도합니다."
+            sleep 30
           done
 
           echo "::error::PlayOps 자체 회귀 테스트 실패 (status=$STATUS, execution #$EXEC_ID)"
