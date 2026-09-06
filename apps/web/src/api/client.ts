@@ -314,6 +314,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  aiEditAssistVerify: (
+    projectId: string,
+    data: { filePath: string; proposedContent: string; specPath?: string }
+  ) =>
+    request<import('@/types').AiEditAssistVerifyResponse>(`/api/projects/${projectId}/ai/edit-assist/verify`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getScenarios: (projectId: string) =>
     request<ScenarioTree>(`/api/projects/${projectId}/scenarios`),
 

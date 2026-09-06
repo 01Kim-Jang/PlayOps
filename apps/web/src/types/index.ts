@@ -499,6 +499,13 @@ export interface AiTemplateResponse {
   }[];
 }
 
+export interface AiEditAssistVerifyResponse {
+  passed: boolean;
+  log: string;
+  durationMs: number;
+  specPath: string;
+}
+
 export interface AiProviderSettingsResponse {
   claudeConfigured: boolean;
   claudeMasked: string;

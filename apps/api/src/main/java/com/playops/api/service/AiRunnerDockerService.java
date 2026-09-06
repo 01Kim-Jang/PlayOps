@@ -100,6 +100,94 @@ public class AiRunnerDockerService {
         }
     }
 
+    public record VerifyResult(boolean passed, String output) {}
+
+    /**
+     * 에디터 "AI 수정 도움"용 — LLM 호출·job.json DB row 없이, 제안된 파일 내용을 실제로
+     * spec에 대해 한 번 실행해 pass/fail+로그만 얻는다. runJob과 달리 결과를 review 큐에 올리지
+     * 않고 그 자리에서 바로 반환하며, 디렉터리도 호출이 끝나면 곧바로 지운다.
+     */
+    public VerifyResult runVerifyJob(Project project, String specPath, Map<String, String> fileOverrides) {
+        String verifyId = "verify-" + java.util.UUID.randomUUID();
+        Path jobDir = Path.of(properties.storageRoot(), "ai-jobs", verifyId);
+        Path resultDir = jobDir.resolve("result");
+        try {
+            Files.createDirectories(jobDir);
+            Files.createDirectories(resultDir);
+
+            List<Map<String, String>> files = new ArrayList<>();
+            for (Map.Entry<String, String> entry : fileOverrides.entrySet()) {
+                Map<String, String> f = new HashMap<>();
+                f.put("path", entry.getKey());
+                f.put("content", entry.getValue());
+                files.add(f);
+            }
+            Map<String, Object> jobJson = new HashMap<>();
+            jobJson.put("jobType", "EDIT_ASSIST_VERIFY");
+            jobJson.put("specPath", specPath);
+            jobJson.put("files", files);
+            Files.writeString(jobDir.resolve("job.json"), objectMapper.writeValueAsString(jobJson), StandardCharsets.UTF_8);
+
+            ensureRunnerImage();
+
+            String containerName = "ai-verify-" + verifyId.substring("verify-".length(), Math.min(verifyId.length(), 15));
+            String containerJobFile = properties.storageRoot() + "/ai-jobs/" + verifyId + "/job.json";
+            String containerResultDir = properties.storageRoot() + "/ai-jobs/" + verifyId + "/result";
+
+            List<String> command = new ArrayList<>();
+            command.add("docker");
+            command.add("run");
+            command.add("--rm");
+            command.add("--name");
+            command.add(containerName);
+            command.add("--network");
+            command.add("container:playops-api");
+            command.addAll(dockerRunnerService.projectVolumeArgs(project.getProjectId()));
+            command.add("--user");
+            command.add("0");
+            command.add("-w");
+            command.add(dockerRunnerService.containerWorkDir(project.getProjectId()));
+            command.add("-e");
+            command.add("AI_JOB_FILE=" + containerJobFile);
+            command.add("-e");
+            command.add("AI_JOB_RESULT_DIR=" + containerResultDir);
+            command.add(AI_RUNNER_IMAGE);
+
+            log.info("AI edit-assist verify 컨테이너 실행 시작. spec={}, container={}", specPath, containerName);
+            int projectTimeout = project.getTimeout() != null ? project.getTimeout() : 300;
+            runProcessCommand(command, Math.max(120, projectTimeout + 60));
+
+            String resultJson = Files.readString(resultDir.resolve("result.json"), StandardCharsets.UTF_8);
+            Map<?, ?> parsed = objectMapper.readValue(resultJson, Map.class);
+            boolean passed = Boolean.TRUE.equals(parsed.get("passed"));
+            String output = String.valueOf(parsed.getOrDefault("output", ""));
+            return new VerifyResult(passed, output);
+        } catch (Exception e) {
+            log.error("AI edit-assist verify 실패. spec={}", specPath, e);
+            throw new ApiException(500, "실행 검증 실패: " + e.getMessage());
+        } finally {
+            try {
+                deleteRecursively(jobDir);
+            } catch (Exception e) {
+                log.warn("verify 작업 디렉터리 정리 실패: {}", jobDir, e);
+            }
+        }
+    }
+
+    private void deleteRecursively(Path dir) throws java.io.IOException {
+        if (!Files.exists(dir)) {
+            return;
+        }
+        try (var stream = Files.walk(dir)) {
+            stream.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.delete(p);
+                } catch (java.io.IOException ignored) {
+                }
+            });
+        }
+    }
+
     public Path aiJobDir(Long jobId) {
         return Path.of(properties.storageRoot(), "ai-jobs", String.valueOf(jobId));
     }

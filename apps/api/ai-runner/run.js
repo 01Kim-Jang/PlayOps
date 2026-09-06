@@ -54,6 +54,43 @@ function stripMarkdownFence(raw) {
   return trimmed.trim();
 }
 
+/**
+ * 에디터 "AI 수정 도움"의 실행 검증 전용 — LLM 호출도, 반복도 없이 제안된 파일 내용을
+ * 딱 한 번 spec에 대해 돌려보고 pass/fail+로그만 돌려준다. CODE_FIX와 마찬가지로 실제 파일은
+ * 검증 끝나면 항상 원본으로 복원한다(diff 검토 절차를 우회하지 않기 위함).
+ */
+function runEditAssistVerify(job) {
+  const overrides = job.files || [];
+  const originals = {};
+  try {
+    for (const f of overrides) {
+      const fullPath = path.join(WORKSPACE, f.path);
+      originals[f.path] = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf-8') : null;
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, f.content, 'utf-8');
+    }
+    const runResult = runPlaywright(job.specPath);
+    writeResult({
+      status: 'VERIFIED',
+      passed: runResult.passed,
+      output: runResult.output.slice(-8000),
+    });
+  } finally {
+    for (const [relPath, content] of Object.entries(originals)) {
+      try {
+        const fullPath = path.join(WORKSPACE, relPath);
+        if (content === null) {
+          fs.unlinkSync(fullPath);
+        } else {
+          fs.writeFileSync(fullPath, content, 'utf-8');
+        }
+      } catch (e) {
+        console.error(`원본 복원 실패 (${relPath}):`, e);
+      }
+    }
+  }
+}
+
 function runPlaywright(specPath) {
   try {
     const output = execFileSync('npx', ['playwright', 'test', specPath], {
@@ -138,6 +175,10 @@ function parseAiResponse(raw, allowedPaths) {
 
 async function main() {
   const job = JSON.parse(fs.readFileSync(jobFile, 'utf-8'));
+  if (job.jobType === 'EDIT_ASSIST_VERIFY') {
+    return runEditAssistVerify(job);
+  }
+
   const targetSpecPath = job.targetSpecPath;
   const specFullPath = path.join(WORKSPACE, targetSpecPath);
   const originalTargetContent = fs.readFileSync(specFullPath, 'utf-8');
@@ -241,15 +282,20 @@ Respond with ONLY the JSON object described in the instructions — no explanati
 main().catch((e) => {
   console.error(e);
   try {
-    writeResult({
-      jobId: JSON.parse(fs.readFileSync(jobFile, 'utf-8')).jobId,
-      status: 'ERROR',
-      iterationsUsed: 0,
-      changedFiles: [],
-      summary: null,
-      targetCaseFixed: false,
-      error: String(e.message || e),
-    });
+    const failedJob = JSON.parse(fs.readFileSync(jobFile, 'utf-8'));
+    if (failedJob.jobType === 'EDIT_ASSIST_VERIFY') {
+      writeResult({ status: 'ERROR', passed: false, output: String(e.message || e) });
+    } else {
+      writeResult({
+        jobId: failedJob.jobId,
+        status: 'ERROR',
+        iterationsUsed: 0,
+        changedFiles: [],
+        summary: null,
+        targetCaseFixed: false,
+        error: String(e.message || e),
+      });
+    }
   } catch (inner) {
     console.error('결과 기록 실패:', inner);
   }

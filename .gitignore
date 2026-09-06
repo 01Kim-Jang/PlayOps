@@ -11,7 +11,12 @@ dist
 !.vscode/settings.json
 playwright-projects/*
 !playwright-projects/npims-stg.skax.co.kr/
+!playwright-projects/playops-self/
 !playwright-projects/.gitkeep
+playwright-projects/playops-self/node_modules/
+playwright-projects/playops-self/test-results/
+playwright-projects/playops-self/playwright-report/
+playwright-projects/playops-self/screenshots/
 storage/*
 !storage/.gitkeep
 utils/bin/

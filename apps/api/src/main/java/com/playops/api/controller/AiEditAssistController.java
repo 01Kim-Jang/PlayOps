@@ -2,6 +2,8 @@ package com.playops.api.controller;
 
 import com.playops.api.dto.AiEditAssistRequest;
 import com.playops.api.dto.AiEditAssistResponse;
+import com.playops.api.dto.AiEditAssistVerifyRequest;
+import com.playops.api.dto.AiEditAssistVerifyResponse;
 import com.playops.api.service.AiEditAssistService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,5 +26,10 @@ public class AiEditAssistController {
         String content = aiEditAssistService.editFile(
                 projectId, body.filePath(), body.currentContent(), body.instruction());
         return new AiEditAssistResponse(content);
+    }
+
+    @PostMapping("/edit-assist/verify")
+    public AiEditAssistVerifyResponse verify(@PathVariable String projectId, @RequestBody AiEditAssistVerifyRequest body) {
+        return aiEditAssistService.verifyEdit(projectId, body.filePath(), body.proposedContent(), body.specPath());
     }
 }
