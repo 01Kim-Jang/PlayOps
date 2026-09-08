@@ -1,6 +1,7 @@
 package com.playops.api.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playops.api.dto.ExecutionResponse;
 import com.playops.api.dto.TestSuiteRequest;
 import com.playops.api.dto.TestSuiteResponse;
 import com.playops.api.entity.TestSuite;
@@ -15,10 +16,12 @@ import java.util.List;
 public class TestSuiteService {
 
     private final TestSuiteRepository testSuiteRepository;
+    private final ExecutionQueryService executionQueryService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public TestSuiteService(TestSuiteRepository testSuiteRepository) {
+    public TestSuiteService(TestSuiteRepository testSuiteRepository, ExecutionQueryService executionQueryService) {
         this.testSuiteRepository = testSuiteRepository;
+        this.executionQueryService = executionQueryService;
     }
 
     public List<TestSuiteResponse> listByProject(String projectId) {
@@ -49,6 +52,17 @@ public class TestSuiteService {
             throw new ApiException(500, "specPaths 직렬화 실패: " + e.getMessage());
         }
         return TestSuiteResponse.from(testSuiteRepository.save(suite));
+    }
+
+    public ExecutionResponse execute(String projectId, Long suiteId) {
+        TestSuite suite = testSuiteRepository.findById(suiteId)
+                .orElseThrow(() -> new ApiException(404, "Test suite not found"));
+        if (!suite.getProjectId().equals(projectId)) {
+            throw new ApiException(404, "Test suite not found");
+        }
+        List<String> specPaths = TestSuiteResponse.from(suite).specPaths();
+        return executionQueryService.triggerRun(
+                projectId, suite.getGrep(), null, specPaths, "묶음: " + suite.getName(), suite.isSequential());
     }
 
     @Transactional

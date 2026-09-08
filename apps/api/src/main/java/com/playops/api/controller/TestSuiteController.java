@@ -1,5 +1,6 @@
 package com.playops.api.controller;
 
+import com.playops.api.dto.ExecutionResponse;
 import com.playops.api.dto.TestSuiteRequest;
 import com.playops.api.dto.TestSuiteResponse;
 import com.playops.api.entity.User;
@@ -37,6 +38,11 @@ public class TestSuiteController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable String projectId, @PathVariable Long id) {
         testSuiteService.delete(projectId, id);
+    }
+
+    @PostMapping("/{id}/execute")
+    public ExecutionResponse execute(@PathVariable String projectId, @PathVariable Long id) {
+        return testSuiteService.execute(projectId, id);
     }
 
     private User currentUser(HttpServletRequest request) {

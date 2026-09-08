@@ -19,5 +19,8 @@ public interface ExecutionRepository extends JpaRepository<Execution, Long> {
 
     List<Execution> findByStatusIn(Collection<ExecutionStatus> statuses);
 
+    /** 실행 소요시간 예상치(ETA) 계산용 — 최근 완료된 실행들의 durationMs만 있으면 된다. */
+    List<Execution> findTop20ByDurationMsIsNotNullOrderByCreatedAtDesc();
+
     void deleteByProjectId(String projectId);
 }
