@@ -1,8 +1,8 @@
-# PlayOps
+# AI-TestOps
 
-**Playwright 기반 테스트 자동화 플랫폼 — 프로젝트 등록부터 시나리오 작성, 실행, 결과 분석, 팀 협업까지 하나의 웹 서비스에서 처리합니다.** AI 어시스턴트가 시나리오 생성·실패 원인 분석·자율 수정을 곳곳에서 보조합니다.
+**Opensource(Playwright) 기반 테스트 자동화 플랫폼 — 프로젝트 등록부터 시나리오 작성, 실행, 결과 분석, 팀 협업까지 하나의 웹 서비스에서 처리합니다.** AI 어시스턴트가 시나리오 생성·실패 원인 분석·자율 수정을 곳곳에서 보조합니다.
 
-전담 QA 인력이 없는 개발팀도 스스로 신뢰할 수 있는 테스트 자동화를 운영할 수 있게 하는 것이 PlayOps의 목표입니다.
+전담 QA 인력이 없는 개발팀도 스스로 신뢰할 수 있는 테스트 자동화를 운영할 수 있게 하는 것이 AI-TestOps의 목표입니다.
 
 ---
 
@@ -12,7 +12,7 @@
 
 | 항목 | 내용 |
 |------|------|
-| 프로젝트명 | **PlayOps** — Playwright 기반 테스트 자동화 플랫폼 |
+| 프로젝트명 | **AI-TestOps** — Opensource(Playwright) 기반 테스트 자동화 플랫폼 |
 | 저장소 | https://github.com/01Kim-Jang/PlayOps |
 | 수행 기간 | 2026-08-28 ~ 진행 중 |
 | 소속 / 과정 | 한성대학교 · 2026 상상더하기 프로젝트 |
@@ -26,19 +26,19 @@
 | 문제 | 현재 팀이 겪는 방식 |
 |------|--------------------|
 | 회귀 테스트 반복 부담 | 배포마다 같은 시나리오를 사람이 다시 확인 |
-| 테스트 코드 진입장벽 | Playwright 문법을 알아야 케이스를 작성할 수 있음 |
+| 테스트 코드 진입장벽 | Opensource(Playwright) 문법을 알아야 케이스를 작성할 수 있음 |
 | 실패 원인 분석 비용 | 로그를 사람이 읽고 원인을 추정 |
 | 결과 가시성 부족 | 실패가 났는지 별도로 찾아봐야 함 |
 
-PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 것을 목표로 한다.
+AI-TestOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 것을 목표로 한다.
 
 ### 3. 목적 및 목표
 
-**목적** — Playwright 전문 지식이 없는 개발자도 스스로 신뢰할 수 있는 테스트 자동화를 운영할 수 있게 한다.
+**목적** — Opensource(Playwright) 전문 지식이 없는 개발자도 스스로 신뢰할 수 있는 테스트 자동화를 운영할 수 있게 한다.
 
 | # | 목표 | 측정 지표 |
 |---|------|-----------|
-| G1 | 자연어로 테스트 케이스를 생성 | 요구사항 입력 → 실행 가능한 Playwright 스펙 산출 |
+| G1 | 자연어로 테스트 케이스를 생성 | 요구사항 입력 → 실행 가능한 Opensource(Playwright) 스펙 산출 |
 | G2 | AI 제안 코드의 신뢰성 확보 | AI 제안을 **실제 실행해 통과 여부까지 제시** |
 | G3 | 실패 원인 분석 자동화 | 실패 로그 → 기술 수준별 진단 제공 |
 | G4 | 플랫폼 자체의 회귀 방지 | CI 파이프라인에 **자체 회귀 테스트 통과를 배포 조건으로** 연결 |
@@ -48,7 +48,7 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 
 **In Scope**
 
-- 프로젝트 등록 · GitHub 저장소 연동 · Playwright 소스 관리(소스 탐색기 + 에디터)
+- 프로젝트 등록 · GitHub 저장소 연동 · Opensource(Playwright) 소스 관리(소스 탐색기 + 에디터)
 - 자연어 → 테스트 시나리오 생성, AI 실패 분석, AI 자율 수정 루프(사람 승인 게이트 포함)
 - 테스트 실행 오케스트레이션 — 프로젝트별 격리 컨테이너, 예약 실행, 테스트 묶음(Suite)
 - 결과 조회 · 대시보드 · Slack 알림 · 사내 게시판
@@ -57,7 +57,7 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 
 **Out of Scope**
 
-- Playwright 외 테스트 프레임워크(Cypress, Selenium 등) 지원
+- Opensource(Playwright) 외 테스트 프레임워크(Cypress, Selenium 등) 지원
 - 모바일 네이티브 앱 테스트
 - 부하/성능 테스트
 - 멀티 테넌시 및 외부 고객 대상 상용 서비스 운영
@@ -67,8 +67,8 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 
 | 구분 | 산출물 |
 |------|--------|
-| 소프트웨어 | PlayOps 웹 애플리케이션 (Web · API · Worker), Docker Compose 배포 구성 |
-| 자동화 | GitHub Actions CI/CD 파이프라인, PlayOps 자체 회귀 테스트 스위트(5케이스) |
+| 소프트웨어 | AI-TestOps 웹 애플리케이션 (Web · API · Worker), Docker Compose 배포 구성 |
+| 자동화 | GitHub Actions CI/CD 파이프라인, AI-TestOps 자체 회귀 테스트 스위트(5케이스) |
 | 설계 문서 | PRD(요구사항분석서), TRD(기술설계서), UI 화면설계서, ERD |
 | 기술 문서 | [Architecture](docs/architecture.md), [To-Be Architecture](docs/tobe-architecture.md), [AI Integration Architecture](docs/ai-integration-architecture.md), [AI Job Spec](docs/ai-job-spec.md) |
 | 기획 문서 | 개선점 계획서, 온톨로지·지식그래프 대시보드 개발 계획서, BM 다이어그램 |
@@ -79,7 +79,7 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 |------|------|------|
 | 지도 | **지도교수님** | 프로젝트 방향 지도, 산출물 검토 및 피드백 |
 | 총괄 · 현업 검토 | **박희운 부장님** | 플랫폼 전체 설계 및 구현, 테스트 서버 제공, 현업 관점 사용성 검토 및 개선 의견 제시 |
-| 개발 | **장준호** ([@Junho73](https://github.com/Junho73)) | 백엔드·프론트엔드 기능 구현, PlayOps 자체 회귀 테스트 스위트 작성, 테스트 서버 배포 및 운영 |
+| 개발 | **장준호** ([@Junho73](https://github.com/Junho73)) | 백엔드·프론트엔드 기능 구현, AI-TestOps 자체 회귀 테스트 스위트 작성, 테스트 서버 배포 및 운영 |
 | 개발 | **김윤재** ([@YoonJae00](https://github.com/YoonJae00)) | CI/CD 파이프라인 구축, LLM 공급자 구조 분리, AI 채팅 대화 히스토리 |
 | 문서 | **장동현** | 산출물 문서 작성 — PRD(요구사항분석서)·TRD(기술설계서)·UI 화면설계서 작성, ERD 및 데이터 모델 정리, 프로젝트 차터·개선 계획서 등 산출물 형상 관리 |
 | 개발 | **박준서** | AI 연동 — AI 시나리오 생성·실패 원인 분석 기능 연동, AI 자율 수정 루프(CODE_FIX) 및 실행 검증 연동, 프롬프트 설계 및 응답 처리 |
@@ -116,7 +116,7 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 
 **가정**
 
-- 대상 프로젝트는 Playwright로 테스트 가능한 웹 애플리케이션이다.
+- 대상 프로젝트는 Opensource(Playwright)로 테스트 가능한 웹 애플리케이션이다.
 - 저장소 연동 시 사용하는 자격증명은 최소 권한으로 발급된다.
 - 팀원은 GitHub 저장소에 대한 접근 권한을 보유한다.
 
@@ -146,10 +146,10 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 ---
 
 
-## 왜 PlayOps인가
+## 왜 AI-TestOps인가
 
 - **반복적인 회귀 테스트 부담** — 배포 주기는 빨라지는데 수동 QA로는 속도를 따라갈 수 없습니다.
-- **테스트 코드 작성 진입장벽** — Playwright 문법을 몰라도 자연어로 요구사항을 적으면 AI가 시나리오를 생성합니다.
+- **테스트 코드 작성 진입장벽** — Opensource(Playwright) 문법을 몰라도 자연어로 요구사항을 적으면 AI가 시나리오를 생성합니다.
 - **실패 원인 파악에 드는 인건비** — AI가 실패 로그를 분석하고, 필요하면 스스로 코드를 수정해 재검증까지 시도합니다(사람 승인 후 반영).
 - **결과 가시성 부족** — 실패/AI 검토 필요/AI 자동 되돌림 시 Slack으로 즉시 알림이 갑니다.
 
@@ -157,9 +157,9 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 
 ### 프로젝트 & 시나리오
 - GitHub 저장소 연동 — 프로젝트 소유 저장소를 격리된 Docker 샌드박스에서 clone·실행
-- Playwright 시나리오 작성/편집 — 소스 탐색기 + Monaco 에디터, 파일 트리 기반 관리
+- Opensource(Playwright) 시나리오 작성/편집 — 소스 탐색기 + Monaco 에디터, 파일 트리 기반 관리
 - 자연어 → 테스트 시나리오 생성 — 기존 프로젝트에 자연어 요구사항으로 새 케이스 추가 (승인 전까지는 검토 대기 상태)
-- Playwright 템플릿 — 신규 프로젝트 등록 시 기본 소스 자동 생성(`default`, `e2e-standard`)
+- Opensource(Playwright) 템플릿 — 신규 프로젝트 등록 시 기본 소스 자동 생성(`default`, `e2e-standard`)
 - 로그인/설정 선행 시나리오 — 세션(storageState)을 재사용해 매 실행마다 로그인 반복 없이 시작
 
 ### 실행 & 오케스트레이션
@@ -169,7 +169,7 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 - 실행 로그 실시간 스트리밍, 케이스별 재실행 이력 조회
 
 ### AI 어시스턴트
-- **AI 시나리오 생성** — 자연어 요구사항을 Playwright 코드로 변환
+- **AI 시나리오 생성** — 자연어 요구사항을 Opensource(Playwright) 코드로 변환
 - **AI 자율 수정 루프(CODE_FIX)** — 실패한 테스트를 AI가 스스로 반복 분석·수정 시도 후 재실행으로 통과 검증. 수정 결과는 자동 반영되지 않고 **AI 검토 대기** 화면에서 사람이 승인해야 실제 파일에 적용됩니다. 승인된 변경도 사후 검증(회귀 감지)을 한 번 더 거칩니다.
 - **AI 분석** — 실패 원인을 기술 수준(비전공자·주니어·시니어)에 맞춰 진단·해설
 - **전역 AI 챗봇** — 로그인 후 모든 화면에서 접근 가능한 도우미, 페이지를 이동해도 대화가 유지됩니다
@@ -193,7 +193,7 @@ PlayOps는 이 네 가지를 **하나의 웹 서비스** 안에서 해결하는 
 apps/
   web     # React + Vite 웹 화면
   api     # Spring Boot API 서버 (핵심 오케스트레이션, AI 게이트웨이, 스케줄러)
-  worker  # Playwright 실행 워커(Node)
+  worker  # Opensource(Playwright) 실행 워커(Node)
 packages/
   common
   playwright-engine
@@ -204,7 +204,7 @@ infra/
 
 **설계 원칙 — Ephemeral Scoped AI Runner**
 
-- `api`만 `docker.sock`에 접근하는 유일한 컴포넌트이며, 기존 Playwright Runner 패턴을 AI 작업에도 동일하게 적용합니다.
+- `api`만 `docker.sock`에 접근하는 유일한 컴포넌트이며, 기존 Opensource(Playwright) Runner 패턴을 AI 작업에도 동일하게 적용합니다.
 - AI/테스트 실행 컨테이너는 작업 단위로 생성되고 종료되는 일회성 컨테이너입니다. 상시 구동되는 프로젝트별 서버는 두지 않습니다.
 - 프로젝트마다 독립된 Docker 볼륨을 사용해 다른 프로젝트의 코드에 접근할 수 없습니다.
 - Git 자격 증명은 `api`만 보유하며, 실행 컨테이너는 이미 체크아웃된 코드만 받고 결과/diff를 볼륨에 기록하면 `api`가 커밋·푸시를 대행합니다.
@@ -218,7 +218,7 @@ infra/
 |------|------|
 | Web | React, Vite, TypeScript, Tailwind CSS, ag-Grid, ECharts, Monaco Editor |
 | API | Spring Boot 3(Java 21), Spring Data JPA, PostgreSQL |
-| Worker | Node.js, Playwright |
+| Worker | Node.js, Opensource(Playwright) |
 | 실행 격리 | Docker (프로젝트/AI 작업별 컨테이너) |
 | AI | Claude / GPT (관리자 등록 공용 키, LLM Gateway로 단일화) |
 | 인프라 | Docker Compose, Nginx(리버스 프록시) |
@@ -241,7 +241,7 @@ docker compose up --build
 
 FE/API 코드를 수정하며 개발할 때 사용합니다. Web은 Vite HMR로 브라우저에 바로 반영되고,
 API는 Gradle continuous compile + Spring DevTools restart로 변경 사항을 자동 반영합니다.
-프로젝트별 Playwright Runner는 Docker 컨테이너로 유지됩니다.
+프로젝트별 Opensource(Playwright) Runner는 Docker 컨테이너로 유지됩니다.
 
 ```bash
 npm run dev
@@ -301,9 +301,9 @@ $env:VITE_API_PROXY="http://localhost:8080"   # Windows PowerShell
 npm run dev
 ```
 
-## Playwright 템플릿
+## Opensource(Playwright) 템플릿
 
-프로젝트 등록 시 **기본 Playwright 소스를 자동 생성**합니다 (권장).
+프로젝트 등록 시 **기본 Opensource(Playwright) 소스를 자동 생성**합니다 (권장).
 
 | 템플릿 ID | 설명 |
 |-----------|------|
@@ -311,7 +311,7 @@ npm run dev
 | `e2e-standard` | fixtures, Page Object 샘플 포함 E2E 구조 |
 
 - 소스 위치: `apps/api/src/main/resources/templates/{templateId}/`
-- Web: **Playwright 템플릿** 메뉴에서 파일 트리·미리보기
+- Web: **Opensource(Playwright) 템플릿** 메뉴에서 파일 트리·미리보기
 - API: `GET /api/templates`, `POST /api/projects/{id}/scaffold`
 
 등록 폼에서 템플릿 선택 및 「등록 시 기본 소스 자동 생성」 체크 가능. 기존 파일이 있으면 건너뛰며, 상세 화면에서 **덮어쓰기**로 재생성할 수 있습니다.
@@ -341,8 +341,8 @@ npm run dev
 
 ## 운영 방향
 
-- 프로젝트별 Playwright 소스는 `playwright-projects/{projectKey}` 아래 볼륨으로 관리합니다.
-- 프로젝트별 Node/Playwright 버전 차이가 크면 워커 이미지를 프로젝트별로 분리하거나, 실행 컨테이너를 동적으로 생성하는 구조로 확장합니다.
+- 프로젝트별 Opensource(Playwright) 소스는 `playwright-projects/{projectKey}` 아래 볼륨으로 관리합니다.
+- 프로젝트별 Node/Opensource(Playwright) 버전 차이가 크면 워커 이미지를 프로젝트별로 분리하거나, 실행 컨테이너를 동적으로 생성하는 구조로 확장합니다.
 - API DB는 dev/prod 모두 PostgreSQL을 사용합니다.
 - 예약 실행은 API 프로세스 내 경량 스케줄러가 "지금이 실행 시각인가"만 판단하고, 실제 실행은 수동 실행과 동일하게 일회성 Runner를 생성해 위임합니다.
 
