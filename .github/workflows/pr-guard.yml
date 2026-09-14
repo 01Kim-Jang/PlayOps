@@ -1,0 +1,21 @@
+name: PR guard
+
+on:
+  pull_request:
+    branches: [main]
+
+# main 은 배포 브랜치다. 모든 작업은 dev 에서 먼저 통합하고,
+# main 으로는 dev 만 올린다. feature 브랜치에서 main 으로 바로 여는 PR 을 막는다.
+jobs:
+  only-from-dev:
+    name: only-from-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: head 브랜치 확인
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "::error::main 으로는 dev 브랜치에서만 PR 을 열 수 있습니다. (현재 head: ${{ github.head_ref }})"
+            echo "작업 브랜치는 dev 로 먼저 병합한 뒤, dev -> main PR 을 여세요."
+            exit 1
+          fi
+          echo "head 브랜치가 dev 입니다. 통과."
